@@ -20,14 +20,14 @@ Function SendMail {
     $emailSmtpServer = "smtp-eu.intra-global.net"
     $emailFrom = "NoReply@Tarkett.com"
     if($MAILBE.Count -eq 1) {
-        $emailTo = $MailAddresses[0]
+        $emailTo = $MAILBE[0]
         $emailMessage = New-Object System.Net.Mail.MailMessage( $emailFrom , $emailTo )
     }
     else {
-        $emailTo = $MailAddresses[0]
+        $emailTo = $MAILBE[0]
         $emailMessage = New-Object System.Net.Mail.MailMessage( $emailFrom , $emailTo )
-        for($i = 1; $i -lt $MailAddresses.count;$i++){
-            $emailMessage.To.Add($MailAddresses[$i])
+        for($i = 1; $i -lt $MAILBE.count;$i++){
+            $emailMessage.To.Add($MAILBE[$i])
         }
     }
 
@@ -124,7 +124,7 @@ $HYDRA | Foreach {
     $_ | Add-Member -type NoteProperty -Name Notification -Value $Notification.Item($_.Terminal)
 }
 $HYDRA | FT
-#SendMail
+SendMail
 $log = Import-Csv $HOMEFOLDER\LogsBE.csv -Delimiter "," 
 $log | Foreach { $_ | Add-Member -Type NoteProperty -Name $date -Value $Notification.Item($_.Terminal) }
 $log | Export-csv $HOMEFOLDER\LogsBE.csv -NoTypeInformation
