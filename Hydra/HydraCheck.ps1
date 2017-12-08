@@ -40,7 +40,7 @@ Function SendMail {
     $emailMessage.Subject = "Hydra Check" 
     $emailPre = "This message was created on $(Get-Date) from $env:COMPUTERNAME <br/>"
     $emailMessage.IsBodyHtml = $true #true or false depends
-    $emailMessage.Body = $HYDRA | ConvertTo-Html -Property Terminal,Department, Location, Notification -Head $style -PreContent $emailPre | Out-String
+    $emailMessage.Body = $HYDRA | ConvertTo-Html -Property Terminal, Printer, Department, Location, 'Printer Notification', 'Terminal Notification' -Head $style -PreContent $emailPre | Out-String
  
     $SMTPClient = New-Object System.Net.Mail.SmtpClient( $emailSmtpServer )
     $SMTPClient.EnableSsl = $False
@@ -62,69 +62,84 @@ Returns status of the device with its location and dept
 
 Function CheckAllHydraStations {
     $HYDRA | foreach {
-    $Terminal = $_.Terminal
-    $Output = ""
-    $connection = Test-Connection -Computername $terminal -Quiet -Count 1
-    if (-Not $connection) {
-        $Output = "Offline"
-    }
-    else {
-        $FileExists = '\\' + $terminal + '\C$\ctwin\ctwin.ini'
-        $CDrive = '\\' + $terminal + '\C$'
-        try {
-            $Drive = New-PSDrive -Name "T" -PSProvider "FileSystem" -Root $CDrive -ErrorAction Stop
-            if (Test-Path $FileExists) {
-                If ((Get-Item $FileExists).Length -lt 5kb) {
-                    $Output = "CTWIN overwritten"
-                }
-                else {
-                    Try {
-                        #$error = Get-WmiObject win32_process -ComputerName $Terminal -Filter "name='tasten32.exe'" -ErrorAction SilentlyContinue
-                        $ctwin = Get-WmiObject win32_process -ComputerName $Terminal -Filter "name='ctwin.exe'" -ErrorAction Stop
-                        #if ( $error ) {
-                        #    $Output = "Tasten32 Error"
-                        #}
-                        if ( $ctwin ) {
-                            $Output = "OK"
+        $Terminal = $_.Terminal
+        $Printer = $_.Printer
+        $TerminalOutput = ""
+        $PrinterOutput = ""
+        $TerminalConnection = Test-Connection -Computername $terminal -Quiet -Count 1
+        $PrinterConnection  = Test-Connection -ComputerName $Printer -Quiet -Count 1 
+        if (-Not $TerminalConnection) {
+            $TerminalOutput = "Offline"
+        }
+        else {
+            $FileExists = '\\' + $terminal + '\C$\ctwin\ctwin.ini'
+            $CDrive = '\\' + $terminal + '\C$'
+            try {
+                $Drive = New-PSDrive -Name "T" -PSProvider "FileSystem" -Root $CDrive -ErrorAction Stop
+                if (Test-Path $FileExists) {
+                    If ((Get-Item $FileExists).Length -lt 5kb) {
+                        $TerminalOutput = "CTWIN overwritten"
+                    }
+                    else {
+                        Try {
+                            #$error = Get-WmiObject win32_process -ComputerName $Terminal -Filter "name='tasten32.exe'" -ErrorAction SilentlyContinue
+                            $ctwin = Get-WmiObject win32_process -ComputerName $Terminal -Filter "name='ctwin.exe'" -ErrorAction Stop
+                            #if ( $error ) {
+                            #    $TerminalOutput = "Tasten32 Error"
+                            #}
+                            if ( $ctwin ) {
+                                $TerminalOutput = "OK"
+                            }
+                            else {
+                                $TerminalOutput = "CTWIN not running"
+                            }
                         }
-                        else {
-                            $Output = "CTWIN not running"
+                        catch {
+                            $TerminalOutput = "$_"
                         }
                     }
-                    catch {
-                        $Output = "$_"
-}
+                }
+                else {
+                    $TerminalOutput = "No ini file"
                 }
             }
-            else {
-                $Output = "No ini file"
+            Catch [System.IO.IOException] {
+                $TerminalOutput = "Not reachable."
             }
-        }
-        Catch [System.IO.IOException] {
-            $Output = "Not reachable."
-        }
-        Catch {
-            $Output = "$_"
-        }
-        Finally {
-             if (Get-PSDrive T -ErrorAction SilentlyContinue) {Remove-PSDrive T}
-        }
+            Catch {
+                $TerminalOutput = "$_"
+            }
+            Finally {
+                 if (Get-PSDrive T -ErrorAction SilentlyContinue) {Remove-PSDrive T}
+            }
         
+        }
+        switch ($PrinterConnection) {
+            $true { $PrinterOutput = "Online" }
+            $false { $PrinterOutput = "Offline" }
+        }
+        $TerminalNotification.Add($terminal, $TerminalOutput)
+        if ($Printer -like "*BE04P*") { $PrinterNotification.Add($Printer, $PrinterOutput) }
     }
-    $Notification.Add($terminal, $Output)
-}
 }
 
+Function CheckAllHydraPrinters { 
+    $HYDRA | Foreach {
+        $Printer = $_.Printer
+    }
+}
 
 <#Main function#>
 $date = Get-Date
-$Notification = @{}
+$TerminalNotification = @{}
+$PrinterNotification = @{}
 CheckAllHydraStations
 $HYDRA | Foreach {
-    $_ | Add-Member -type NoteProperty -Name Notification -Value $Notification.Item($_.Terminal)
+    if($_.Printer -like "*BE04P*") { $_ | Add-Member -Type NoteProperty -Name "Printer Notification" -Value $PrinterNotification.Item($_.Printer) }
+    $_ | Add-Member -type NoteProperty -Name "Terminal Notification" -Value $TerminalNotification.Item($_.Terminal)
 }
 $HYDRA | FT
 SendMail
-$log = Import-Csv $HOMEFOLDER\LogsBE.csv -Delimiter "," 
-$log | Foreach { $_ | Add-Member -Type NoteProperty -Name $date -Value $Notification.Item($_.Terminal) }
-$log | Export-csv $HOMEFOLDER\LogsBE.csv -NoTypeInformation
+<#$log = Import-Csv $HOMEFOLDER\LogsBE.csv -Delimiter "," 
+$log | Foreach { $_ | Add-Member -Type NoteProperty -Name $date -Value $TerminalNotification.Item($_.Terminal) }
+$log | Export-csv $HOMEFOLDER\LogsBE.csv -NoTypeInformation#>
