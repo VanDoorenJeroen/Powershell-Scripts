@@ -10,8 +10,10 @@
 <# VARIABLES #>
 
 $HOMEFOLDER = "\\BE04SFP001\home$\doorenj\Windows Scripts\Powershell-Scripts\Hydra"
+$LOGFILE = "LogsBE.csv"
 $HYDRA = Import-Csv $HOMEFOLDER\HydraTerminalBE.csv -Delimiter ";"
 $MAILBE = @("DL_BE04_Desso_IT@tarkett.com", "Nicolas.VanDenBossche@tarkett.com", "Gunter.Geysen@Tarkett.com")
+
 
 
 <# SEND MAIL #>
@@ -63,11 +65,8 @@ Returns status of the device with its location and dept
 Function CheckAllHydraStations {
     $HYDRA | foreach {
         $Terminal = $_.Terminal
-        $Printer = $_.Printer
         $TerminalOutput = ""
-        $PrinterOutput = ""
         $TerminalConnection = Test-Connection -Computername $terminal -Quiet -Count 1
-        $PrinterConnection  = Test-Connection -ComputerName $Printer -Quiet -Count 1 
         if (-Not $TerminalConnection) {
             $TerminalOutput = "Offline"
         }
@@ -114,18 +113,20 @@ Function CheckAllHydraStations {
             }
         
         }
-        switch ($PrinterConnection) {
-            $true { $PrinterOutput = "Online" }
-            $false { $PrinterOutput = "Offline" }
-        }
         $TerminalNotification.Add($terminal, $TerminalOutput)
-        if ($Printer -like "*BE04P*") { $PrinterNotification.Add($Printer, $PrinterOutput) }
     }
 }
 
 Function CheckAllHydraPrinters { 
     $HYDRA | Foreach {
         $Printer = $_.Printer
+        $PrinterOutput = ""
+        $PrinterConnection  = Test-Connection -ComputerName $Printer -Quiet -Count 1 
+        switch ($PrinterConnection) {
+            $true { $PrinterOutput = "Online" }
+            $false { $PrinterOutput = "Offline" }
+        }
+        if ($Printer -like "*BE04P*") { $PrinterNotification.Add($Printer, $PrinterOutput) }
     }
 }
 
@@ -134,12 +135,25 @@ $date = Get-Date
 $TerminalNotification = @{}
 $PrinterNotification = @{}
 CheckAllHydraStations
+CheckAllHydraPrinters
 $HYDRA | Foreach {
     if($_.Printer -like "*BE04P*") { $_ | Add-Member -Type NoteProperty -Name "Printer Notification" -Value $PrinterNotification.Item($_.Printer) }
     $_ | Add-Member -type NoteProperty -Name "Terminal Notification" -Value $TerminalNotification.Item($_.Terminal)
 }
 $HYDRA | FT
 SendMail
-<#$log = Import-Csv $HOMEFOLDER\LogsBE.csv -Delimiter "," 
-$log | Foreach { $_ | Add-Member -Type NoteProperty -Name $date -Value $TerminalNotification.Item($_.Terminal) }
-$log | Export-csv $HOMEFOLDER\LogsBE.csv -NoTypeInformation#>
+if (Test-Path $HOMEFOLDER\$LOGFILE) {
+    $log = Import-Csv $HOMEFOLDER\$LOGFILE -Delimiter "," 
+    $log | Foreach { $_ | Add-Member -Type NoteProperty -Name $date -Value $TerminalNotification.Item($_.Terminal) }
+    $log | Export-csv $HOMEFOLDER\$LOGFILE -NoTypeInformation
+}
+else{
+    [System.Collections.ArrayList]$log = @()
+    $log.Add("Terminal,$date")
+    foreach ($terminal in $HYDRA) {
+        $state = $terminal.Terminal+","+$TerminalNotification.Item($terminal.Terminal)
+        $log.Add($state)
+    }   
+    $log 
+    $log | Out-File $HOMEFOLDER\$LOGFILE 
+}
