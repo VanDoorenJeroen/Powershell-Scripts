@@ -13,7 +13,7 @@ $HOMEFOLDER = "\\BE04SFP001\home$\doorenj\Windows Scripts\Powershell-Scripts\Hyd
 $LOGFILE = "LogsBE.csv"
 $HYDRA = Import-Csv $HOMEFOLDER\HydraTerminalBE.csv -Delimiter ";"
 $MAILBE = @("DL_BE04_Desso_IT@tarkett.com", "Nicolas.VanDenBossche@tarkett.com", "Gunter.Geysen@Tarkett.com")
-
+#$MAILBE = @("Jeroen.VanDooren@tarkett.com")
 
 
 <# SEND MAIL #>
@@ -42,7 +42,7 @@ Function SendMail {
     $emailMessage.Subject = "Hydra Check" 
     $emailPre = "This message was created on $(Get-Date) from $env:COMPUTERNAME <br/>"
     $emailMessage.IsBodyHtml = $true #true or false depends
-    $emailMessage.Body = $HYDRA | ConvertTo-Html -Property Terminal, Printer, Department, Location, 'Printer Notification', 'Terminal Notification' -Head $style -PreContent $emailPre | Out-String
+    $emailMessage.Body = $HYDRA | ConvertTo-Html -Property Terminal, Printer, Department, Location, 'Printer Status', 'Terminal Notification' -Head $style -PreContent $emailPre | Out-String
  
     $SMTPClient = New-Object System.Net.Mail.SmtpClient( $emailSmtpServer )
     $SMTPClient.EnableSsl = $False
@@ -117,6 +117,8 @@ Function CheckAllHydraStations {
     }
 }
 
+<# CHECK ALL HYDRA PRINTERS #>
+
 Function CheckAllHydraPrinters { 
     $HYDRA | Foreach {
         $Printer = $_.Printer
@@ -130,6 +132,25 @@ Function CheckAllHydraPrinters {
     }
 }
 
+<# CREATE OR OVERWRITE LOGFILE #>
+
+Function CreateLogFile {
+    if (Test-Path $HOMEFOLDER\$LOGFILE) {
+    $log = Import-Csv $HOMEFOLDER\$LOGFILE -Delimiter "," 
+    $log | Foreach { $_ | Add-Member -Type NoteProperty -Name $date -Value $TerminalNotification.Item($_.Terminal) }
+    $log | Export-csv $HOMEFOLDER\$LOGFILE -NoTypeInformation
+    }
+    else{
+        [System.Collections.ArrayList]$log = @()
+        $log.Add("Terminal,$date")
+        foreach ($terminal in $HYDRA) {
+            $state = $terminal.Terminal+","+$TerminalNotification.Item($terminal.Terminal)
+            $log.Add($state)
+        }   
+        $log | Out-File $HOMEFOLDER\$LOGFILE 
+    }
+}
+
 <#Main function#>
 $date = Get-Date
 $TerminalNotification = @{}
@@ -137,23 +158,9 @@ $PrinterNotification = @{}
 CheckAllHydraStations
 CheckAllHydraPrinters
 $HYDRA | Foreach {
-    if($_.Printer -like "*BE04P*") { $_ | Add-Member -Type NoteProperty -Name "Printer Notification" -Value $PrinterNotification.Item($_.Printer) }
+    if($_.Printer -like "*BE04P*") { $_ | Add-Member -Type NoteProperty -Name "Printer Status" -Value $PrinterNotification.Item($_.Printer) }
     $_ | Add-Member -type NoteProperty -Name "Terminal Notification" -Value $TerminalNotification.Item($_.Terminal)
 }
 $HYDRA | FT
 SendMail
-if (Test-Path $HOMEFOLDER\$LOGFILE) {
-    $log = Import-Csv $HOMEFOLDER\$LOGFILE -Delimiter "," 
-    $log | Foreach { $_ | Add-Member -Type NoteProperty -Name $date -Value $TerminalNotification.Item($_.Terminal) }
-    $log | Export-csv $HOMEFOLDER\$LOGFILE -NoTypeInformation
-}
-else{
-    [System.Collections.ArrayList]$log = @()
-    $log.Add("Terminal,$date")
-    foreach ($terminal in $HYDRA) {
-        $state = $terminal.Terminal+","+$TerminalNotification.Item($terminal.Terminal)
-        $log.Add($state)
-    }   
-    $log 
-    $log | Out-File $HOMEFOLDER\$LOGFILE 
-}
+CreateLogFile

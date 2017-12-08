@@ -10,6 +10,7 @@
 <# VARIABLES #>
 
 $HOMEFOLDER = "\\desso.int\DFSDesso\ITScripts\Powershell\Hydra"
+$LOGFILE = "LogsNL.csv"
 $HYDRA = Import-Csv $HOMEFOLDER\HydraTerminalNL.csv -Delimiter ";"
 
 
@@ -19,7 +20,7 @@ Function SendMail {
     $emailSmtpServer = "smtp-eu.intra-global.net"
     $emailFrom = "NoReply@Tarkett.com"
     $emailTo = "DL_NL02_Desso_IT@tarkett.com"
-    #$emailcc= "Jeroen.VanDooren@tarkett.com"
+    $emailcc= "Gunter.Geysen@tarkett.com"
 
     $style = "<style>BODY{font-family: Verdana; font-size: 10pt;}"
     $style = $style + "TABLE{border: 1px solid black; border-collapse: collapse;}"
@@ -28,7 +29,7 @@ Function SendMail {
     $style = $style + "</style>"
 
     $emailMessage = New-Object System.Net.Mail.MailMessage( $emailFrom , $emailTo )
-    #$emailMessage.cc.add($emailcc)
+    $emailMessage.cc.add($emailcc)
     $emailMessage.Subject = "Hydra Check" 
     $emailPre = "This message was created on $(Get-Date) from $env:COMPUTERNAME <br/>"
     $emailMessage.IsBodyHtml = $true #true or false depends
@@ -54,57 +55,76 @@ Returns status of the device with its location and dept
 
 Function CheckAllHydraStations {
     $HYDRA | foreach {
-    $Terminal = $_.Terminal
-    $Output = ""
-    $connection = Test-Connection -Computername $terminal -Quiet -Count 1
-    if (-Not $connection) {
-        $Output = "Offline"
+        $Terminal = $_.Terminal
+        $Output = ""
+        $connection = Test-Connection -Computername $terminal -Quiet -Count 1
+        if (-Not $connection) {
+            $Output = "Offline"
+        }
+        else {
+            $FileExists = '\\' + $terminal + '\C$\ctwin\ctwin.ini'
+            $CDrive = '\\' + $terminal + '\C$'
+            try {
+                $Drive = New-PSDrive -Name "T" -PSProvider "FileSystem" -Root $CDrive -ErrorAction Stop
+                if (Test-Path $FileExists) {
+                    If ((Get-Item $FileExists).Length -lt 5kb) {
+                        $Output = "CTWIN overwritten"
+                    }
+                    else {
+                        Try {
+                            #$error = Get-WmiObject win32_process -ComputerName $Terminal -Filter "name='tasten32.exe'" -ErrorAction SilentlyContinue
+                            $ctwin = Get-WmiObject win32_process -ComputerName $Terminal -Filter "name='ctwin.exe'" -ErrorAction Stop
+                            #if ( $error ) {
+                            #    $Output = "Tasten32 Error"
+                            #}
+                            if ( $ctwin ) {
+                                $Output = "OK"
+                            }
+                            else {
+                                $Output = "CTWIN not running"
+                            }
+                        }
+                        catch {
+                            $Output = "$_"
     }
-    else {
-        $FileExists = '\\' + $terminal + '\C$\ctwin\ctwin.ini'
-        $CDrive = '\\' + $terminal + '\C$'
-        try {
-            $Drive = New-PSDrive -Name "T" -PSProvider "FileSystem" -Root $CDrive -ErrorAction Stop
-            if (Test-Path $FileExists) {
-                If ((Get-Item $FileExists).Length -lt 5kb) {
-                    $Output = "CTWIN overwritten"
+                    }
                 }
                 else {
-                    Try {
-                        #$error = Get-WmiObject win32_process -ComputerName $Terminal -Filter "name='tasten32.exe'" -ErrorAction SilentlyContinue
-                        $ctwin = Get-WmiObject win32_process -ComputerName $Terminal -Filter "name='ctwin.exe'" -ErrorAction Stop
-                        #if ( $error ) {
-                        #    $Output = "Tasten32 Error"
-                        #}
-                        if ( $ctwin ) {
-                            $Output = "OK"
-                        }
-                        else {
-                            $Output = "CTWIN not running"
-                        }
-                    }
-                    catch {
-                        $Output = "$_"
-}
+                    $Output = "No ini file"
                 }
             }
-            else {
-                $Output = "No ini file"
+            Catch [System.IO.IOException] {
+                $Output = "Not reachable."
             }
-        }
-        Catch [System.IO.IOException] {
-            $Output = "Not reachable."
-        }
-        Catch {
-            $Output = "$_"
-        }
-        Finally {
-             if (Get-PSDrive T -ErrorAction SilentlyContinue) {Remove-PSDrive T}
-        }
+            Catch {
+                $Output = "$_"
+            }
+            Finally {
+                 if (Get-PSDrive T -ErrorAction SilentlyContinue) {Remove-PSDrive T}
+            }
         
+        }
+        $Notification.Add($terminal, $Output)
     }
-    $Notification.Add($terminal, $Output)
 }
+
+<# CREATE OR OVERWRITE LOGFILE #>
+
+Function CreateLogFile {
+    if (Test-Path $HOMEFOLDER\$LOGFILE) {
+    $log = Import-Csv $HOMEFOLDER\$LOGFILE -Delimiter "," 
+    $log | Foreach { $_ | Add-Member -Type NoteProperty -Name $date -Value $TerminalNotification.Item($_.Terminal) }
+    $log | Export-csv $HOMEFOLDER\$LOGFILE -NoTypeInformation
+    }
+    else{
+        [System.Collections.ArrayList]$log = @()
+        $log.Add("Terminal,$date")
+        foreach ($terminal in $HYDRA) {
+            $state = $terminal.Terminal+","+$TerminalNotification.Item($terminal.Terminal)
+            $log.Add($state)
+        }   
+        $log | Out-File $HOMEFOLDER\$LOGFILE 
+    }
 }
 
 
@@ -117,6 +137,4 @@ $HYDRA | Foreach {
 }
 $HYDRA | FT
 SendMail
-$log = Import-Csv $HOMEFOLDER\LogsNL.csv -Delimiter "," 
-$log | Foreach { $_ | Add-Member -Type NoteProperty -Name $date -Value $Notification.Item($_.Terminal) }
-$log | Export-csv $HOMEFOLDER\LogsNL.csv -NoTypeInformation
+CreateLogFile
