@@ -104,7 +104,7 @@ Function CheckAllHydraStations {
             }
         
         }
-        $Notification.Add($terminal, $Output)
+        $TerminalNotification.Add($terminal, $Output)
     }
 }
 
@@ -130,11 +130,11 @@ Function CreateLogFile {
 
 <#Main function#>
 $date = Get-Date
-$Notification = @{}
+$TerminalNotification = @{}
 CheckAllHydraStations
 $HYDRA | Foreach {
-    $_ | Add-Member -type NoteProperty -Name Notification -Value $Notification.Item($_.Terminal)
+    $_ | Add-Member -type NoteProperty -Name Notification -Value $TerminalNotification.Item($_.Terminal)
 }
-$HYDRA | FT
+#$HYDRA | FT
 SendMail
 CreateLogFile
