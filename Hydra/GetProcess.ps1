@@ -25,33 +25,7 @@ $HYDRA | Foreach {
             else { "$PROCESSNAAM not succesfully terminated" }
         }
         else{ "$terminal has no $PROCESSNAAM process" }#>
-
-        <#Check if files exists and delete#>
-        if (Test-Path $DESKTOPPATH) { Remove-Item $DESKTOPPATH
-        "Desktop cleaned on $terminal" }
-        else { "$terminal No Desktoppath" }
-
-        if (Test-Path $STARTUPPATH) { Remove-Item $STARTUPPATH 
-        "Startup cleaned on $terminal" }
-        else { "$terninal No Startuppath" }
     }
 
 }
 
-
-
-<#$processes = Gwmi -Class win32_process -ComputerName BE04DW70010 | ? { $_.Name -like $PROCESSNAAM }
-foreach ($proces in $processes)
-{
-    $proces.Path
-    $returnval = $proces.Terminate()
-    $processid = $proces.handle
-
-    if ($returnval.returnvalue -eq 0) {
-        Write-Host "The process $processnae terminated"
-    }
-    else {
-        Write-Host "Not done!"
-    }
-
-}#>
