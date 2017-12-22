@@ -103,7 +103,7 @@ Function CheckAllHydraStations {
                 }
             }
             Catch [System.IO.IOException] {
-                $TerminalOutput = "Not reachable."
+                $TerminalOutput = "Not reachable"
             }
             Catch {
                 $TerminalOutput = "$_"
@@ -161,6 +161,10 @@ $HYDRA | Foreach {
     if($_.Printer -like "*BE04P*") { $_ | Add-Member -Type NoteProperty -Name "Printer Status" -Value $PrinterNotification.Item($_.Printer) }
     $_ | Add-Member -type NoteProperty -Name "Terminal Notification" -Value $TerminalNotification.Item($_.Terminal)
 }
-$HYDRA | FT
-SendMail
-CreateLogFile
+if($env:COMPUTERNAME -like "BE04LW80002"){
+    $HYDRA | FT
+}
+else {
+    SendMail
+    CreateLogFile 
+}

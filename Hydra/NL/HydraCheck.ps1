@@ -9,7 +9,7 @@
 
 <# VARIABLES #>
 
-$HOMEFOLDER = "\\desso.int\DFSDesso\ITScripts\Powershell\Hydra"
+$HOMEFOLDER = "\\ddrns001\DFSDesso\ITScripts\Powershell\Hydra"
 $LOGFILE = "LogsNL.csv"
 $HYDRA = Import-Csv $HOMEFOLDER\HydraTerminalNL.csv -Delimiter ";"
 
@@ -135,6 +135,6 @@ CheckAllHydraStations
 $HYDRA | Foreach {
     $_ | Add-Member -type NoteProperty -Name Notification -Value $TerminalNotification.Item($_.Terminal)
 }
-#$HYDRA | FT
-SendMail
-CreateLogFile
+$HYDRA | FT
+#SendMail
+#CreateLogFile

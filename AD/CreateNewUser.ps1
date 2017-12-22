@@ -6,6 +6,13 @@
 ########                                                  ########
 ##################################################################
 
+<#Enable Exchange PS 
+#********************
+Set-ExecutionPolicy RemoteSigned
+$UserCredential = Get-Credential
+$Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri http://EUSMP041/PowerShell/ -Authentication Kerberos -Credential $UserCredential
+Import-PSSession $Session
+#******************** #>
 Import-Module ActiveDirectory
 
 <#VARIABLES#>
@@ -41,7 +48,8 @@ $FirstName = Read-Host "`nEnter first name"
 $LastName = Read-Host "`nEnter last name"
 $Account = Read-Host "`nEnter account name"
 $Title = Read-Host "`nEnter title"
-$Manager = Read-Host "`nEnter manager name"
+$Manager = Read-Host "`nEnter manager name (username)"
+$UserNameToCopyFrom = Read-Host "`nEnter username to copy rights from"
 
 Write-Host "`n     Choose Department`n"
 GetOverview $LISTAFDELING
@@ -111,5 +119,32 @@ if ($Confirm -eq "y") {
     catch
     {
         $_
+        Exit
+    }
+    if($CopyFromUser -ne "")
+    {
+        try 
+        {
+            $CopyFromUser = Get-ADUser $UserNameToCopyFrom -prop Memberof
+            $CopyToUser = Get-ADUser $Account -prop Memberof
+            $CopyFromUser.MemberOf | Where {$CopyToUser.MemberOf -notcontains $_ } | Add-ADGroupMember -Member $CopyToUser -ErrorAction SilentlyContinue
+        }
+        catch
+        {
+            $_
+        }
     }
 }
+
+<#        $UserNameToCopyFrom = "hermansk"
+        
+        try 
+        {
+            $CopyFromUser = Get-ADUser $UserNameToCopyFrom -prop Memberof
+            $CopyToUser = Get-ADUser $Account -prop Memberof
+            $CopyFromUser.MemberOf | Where {$Account.MemberOf -notcontains $_ } | Add-ADGroupMember -Member $Account -ErrorAction SilentlyContinue
+        }
+        catch
+        {
+            $_
+        }#>
