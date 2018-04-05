@@ -1,0 +1,3 @@
+copy /y "\\BE04SFP001\home$\doorenj\Windows Scripts\Powershell-Scripts\Hydra\LogsBE.csv" "\\Tarkett-inside\communities\GROUPITINFRADEPLOYMENTEMEALATAMAPAC\SITES\BE04-DENDERMONDE\Desso FoCus 2017\Hydra_terminal_monitoring_BE04.csv"
+copy /y "\\desso.int\DFSDesso\ITScripts\Powershell\Hydra\LogsNL.csv" "\\Tarkett-inside\communities\GROUPITINFRADEPLOYMENTEMEALATAMAPAC\SITES\NL02 - Waalwijk\Desso FoCus 2017\Hydra_terminal_monitoring_NL02.csv"
+timeout 5
